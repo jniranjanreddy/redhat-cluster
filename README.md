@@ -12,7 +12,7 @@ pcs cluster auth bing1 bing2
 pcs cluster setup --start --name my_cluster bing1 bing2
 pcs cluster enable --all
 ```
-## Here is the Putput
+## Here is the output
 ```
 [root@redclus01 ~]# yum install pcs pacemaker fence-agents-all
 Loaded plugins: fastestmirror
