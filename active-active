@@ -1,0 +1,28 @@
+yum install lvm2-cluster gfs2-utils
+
+lvmconf --enable-cluster
+
+pcs resource create dlm ocf:pacemaker:controld op monitor interval=30s on-fail=fence clone interleave=true ordered=true
+
+pcs resource create clvmd ocf:heartbeat:clvm op monitor interval=30s on-fail=fence clone interleave=true ordered=true
+
+pcs constraint order start dlm-clone then clvmd-clone
+
+pcs constraint colocation add clvmd-clone with dlm-clone
+
+pvcreate /dev/sdb
+
+vgcreate -cy web_vg /dev/sdb
+
+lvcreate -L 3GB -n web_lv web_vg
+
+sudo wipefs --all --no-act /dev/sdb -> Sometimes you can encounter “device excluded by a filter” LVM error 
+
+mkfs.gfs2 -p lock_dlm -j 2 -t my_cluster:web /dev/web_vg/web_lv
+
+pcs resource create web_fs Filesystem device="/dev/web_vg/web_lv" directory="/var/www" fstype="gfs2" clone 
+
+pcs resource create web_ip IPaddr2 ip=192.168.1.200 cidr_netmask=24  
+
+pcs resource create website apache 
+
