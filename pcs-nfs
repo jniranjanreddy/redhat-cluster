@@ -1,0 +1,29 @@
+Steps to Create NFS 
+yum install nfs* rpcbind -y
+pvcreate /dev/sdb
+vgcreate my_vg /dev/sdb
+lvcreate -L 1GB -n my_lv my_vg
+mkfs.ext4 /dev/my_vg/my_lv
+mkdir /nfsshare
+mount /dev/my_vg/my_lv /nfsshare
+umount /dev/my_vg/my_lv
+vgchange -an nfs_vg  -> Deactivate the LVM volume group
+lvmconf --enable-halvm --services --startstopservices -> Execute the following command to ensure 
+	locking_type is set to  1 
+	use_lvmetad is set to  0     in the /etc/lvm/lvm.conf  file
+vgs --noheadings -o vg_name -> Check all your vg
+volume_list = [ "rhel_root", "rhel_home" ]  -> Edit inside ( /etc/lvm/lvm.conf ) Add all vgs except the one for nfs even none your have execute ( volume_list = [] )
+dracut -H -f /boot/initramfs-$(uname -r).img $(uname -r)  -> Rebuild the initramfs boot image to guarantee that the boot image will not try to activate a volume group controlled by the cluster
+Reboot
+pcs cluster start --all
+pcs resource create my_lvm LVM volgrpname=my_vg exclusive=true --group nfsgroup ->   exclusive=true parameter to ensure that only the cluster is capable of activating the LVM logical volume
+pcs resource create nfsshare Filesystem device=/dev/my_vg/my_lv directory=/nfsshare fstype=ext4 --group nfsgroup  -> 
+pcs resource create nfs-daemon nfsserver nfs_shared_infodir=/nfsshare/nfsinfo nfs_no_notify=true --group nfsgroup -> NFS daemons will use to store NFS-related stateful information. It is recommended that this attribute be set to a subdirectory of one of the Filesystem resources you created in this collection of exports
+pcs resource create nfs-root exportfs clientspec="*" options=rw,sync,no_root_squash directory=/nfsshare fsid=0 --group nfsgroup  -> export the directory path 
+pcs resource create nfs_ip IPaddr2 ip=192.168.1.200 cidr_netmask=24 --group nfsgroup
+pcs resource create nfs-notify nfsnotify source_host=192.168.1.200 --group nfsgroup -optional 
+showmount -e 192.168.1.200
+mount  192.168.1.200:/nfsshare  /nfs 
+mount -o "vers=3" 192.168.1.200:/nfsshare  /nfs 
+pcs node standby redclus01.example.com
+pcs node standby redclus02.example.com
